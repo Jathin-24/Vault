@@ -151,7 +151,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       // Belt & braces: even if a browser ignored attachment, it cannot
       // execute anything from this response.
       "Content-Security-Policy": "default-src 'none'; sandbox",
-      "X-TTrustVault-Access": viaAdmin ? "admin-override" : "granted",
+      "X-TrustVault-Access": viaAdmin ? "admin-override" : "granted",
     });
 
     return new Response(blob.stream(), { status: 200, headers });

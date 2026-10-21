@@ -140,7 +140,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       .eq("id", id)
       .select("id, title, description, category, folder_id, updated_at");
 
-    if (error) throw error;
+    // RLS can refuse the write by REJECTING the statement (42501) rather than
+    // by matching zero rows — map that to the same visibility logic below
+    // instead of leaking a 500.
+    if (error && error.code !== "42501") throw error;
     if (!updated || updated.length === 0) {
       // RLS blocked the write. Distinguish only what the caller already knows:
       // if they can SEE the document, they're read-only (403); if not, the
