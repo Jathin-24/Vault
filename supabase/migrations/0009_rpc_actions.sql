@@ -108,9 +108,9 @@ end;
 $$;
 
 revoke execute on function public.tv_authorize_document_access(uuid, text, text, text, text)
-  from public, public.anon;
+  from public, anon;
 grant execute on function public.tv_authorize_document_access(uuid, text, text, text, text)
-  to public.authenticated, public.service_role;
+  to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- Break-glass: the ONLY way an administrator reaches document content.
@@ -150,8 +150,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_admin_read_document(uuid) from public, public.anon;
-grant execute on function public.tv_admin_read_document(uuid) to public.authenticated;
+revoke execute on function public.tv_admin_read_document(uuid) from public, anon;
+grant execute on function public.tv_admin_read_document(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Rate limiter: fixed window per key, row-locked. Used for login, signup and
@@ -191,9 +191,9 @@ end;
 $$;
 
 revoke execute on function public.tv_rate_limit_take(text, integer, integer)
-  from public, public.anon;
+  from public, anon;
 grant execute on function public.tv_rate_limit_take(text, integer, integer)
-  to public.authenticated, public.service_role;
+  to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- AI assist: suggest colleagues who maybe SHOULD see this document.
@@ -270,8 +270,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_suggest_viewers(uuid) from public, public.anon;
-grant execute on function public.tv_suggest_viewers(uuid) to public.authenticated;
+revoke execute on function public.tv_suggest_viewers(uuid) from public, anon;
+grant execute on function public.tv_suggest_viewers(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Record an owner's decision about a suggestion (accepted/declined).
@@ -318,8 +318,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_decide_suggestion(uuid, text) from public, public.anon;
-grant execute on function public.tv_decide_suggestion(uuid, text) to public.authenticated;
+revoke execute on function public.tv_decide_suggestion(uuid, text) from public, anon;
+grant execute on function public.tv_decide_suggestion(uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Self profile update (name only — role/active flags need admin RPCs).
@@ -339,8 +339,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_update_my_profile(text) from public, public.anon;
-grant execute on function public.tv_update_my_profile(text) to public.authenticated;
+revoke execute on function public.tv_update_my_profile(text) from public, anon;
+grant execute on function public.tv_update_my_profile(text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Admin: role/activation management. Admin-only inside, audited.
@@ -404,10 +404,10 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_set_platform_role(uuid, text) from public, public.anon;
-revoke execute on function public.tv_set_user_active(uuid, boolean) from public, public.anon;
-grant execute on function public.tv_set_platform_role(uuid, text) to public.authenticated;
-grant execute on function public.tv_set_user_active(uuid, boolean) to public.authenticated;
+revoke execute on function public.tv_set_platform_role(uuid, text) from public, anon;
+revoke execute on function public.tv_set_user_active(uuid, boolean) from public, anon;
+grant execute on function public.tv_set_platform_role(uuid, text) to authenticated;
+grant execute on function public.tv_set_user_active(uuid, boolean) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Retention: purge a SOFT-DELETED document (owner or admin). Logs a snapshot
@@ -455,8 +455,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_purge_document(uuid) from public, public.anon;
-grant execute on function public.tv_purge_document(uuid) to public.authenticated;
+revoke execute on function public.tv_purge_document(uuid) from public, anon;
+grant execute on function public.tv_purge_document(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Chain verification (admin). Recomputes every hash; also checks each row's
@@ -511,8 +511,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_verify_audit_chain() from public, public.anon;
-grant execute on function public.tv_verify_audit_chain() to public.authenticated;
+revoke execute on function public.tv_verify_audit_chain() from public, anon;
+grant execute on function public.tv_verify_audit_chain() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Admin: anomaly feed derived from the audit trail (what is worth noticing).
@@ -579,8 +579,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_admin_anomalies() from public, public.anon;
-grant execute on function public.tv_admin_anomalies() to public.authenticated;
+revoke execute on function public.tv_admin_anomalies() from public, anon;
+grant execute on function public.tv_admin_anomalies() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Admin: console summary numbers.
@@ -614,5 +614,5 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_admin_summary() from public, public.anon;
-grant execute on function public.tv_admin_summary() to public.authenticated;
+revoke execute on function public.tv_admin_summary() from public, anon;
+grant execute on function public.tv_admin_summary() to authenticated;

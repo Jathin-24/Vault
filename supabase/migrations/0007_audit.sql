@@ -136,11 +136,15 @@ begin
   -- Serialise chain appends; released at commit/rollback.
   perform pg_advisory_xact_lock(7272726);
 
+  -- NOTE: SELECT INTO on an EMPTY table assigns NULL (it overwrites the
+  -- declaration default), and the very first audited event ever written sees
+  -- an empty chain — so coalesce again here or prev_hash violates NOT NULL.
   select coalesce(event_hash, '')
     into v_prev
     from public.audit_events
     order by id desc
     limit 1;
+  v_prev := coalesce(v_prev, '');
 
   v_row_id := nextval('public.audit_events_id_seq');
 
@@ -155,20 +159,22 @@ begin
     id, created_at, actor_user_id, actor_email, actor_role, event_type,
     document_id, target_email, route, outcome, ip, user_agent,
     metadata, metadata_sha256, prev_hash, event_hash
-  ) values (
+  )
+  overriding system value
+  values (
     v_row_id, v_created, v_uid, v_email, v_role, p_event_type,
     p_document_id, p_target_email, p_route, p_outcome, p_ip, p_user_agent,
     coalesce(p_metadata, '{}'::jsonb), v_meta_sha, v_prev, v_hash
-  ) overriding system value;
+  );
 
   return v_row_id;
 end;
 $$;
 
 revoke execute on function public.tv_log_event(text, uuid, text, text, text, jsonb, text, text, uuid)
-  from public.anon, public.authenticated;
+  from anon, authenticated;
 grant execute on function public.tv_log_event(text, uuid, text, text, text, jsonb, text, text, uuid)
-  to public.service_role;
+  to service_role;
 
 -- ---------------------------------------------------------------------------
 -- Append-only enforcement. Statement-level: covers every row, every role.
@@ -279,5 +285,5 @@ create policy "audit_select_actor_owner_or_admin"
   );
 
 -- Direct reads are allowed (RLS filters), writes are impossible.
-revoke all on public.audit_events from public.anon;
-grant select on public.audit_events to public.authenticated;
+revoke all on public.audit_events from anon;
+grant select on public.audit_events to authenticated;

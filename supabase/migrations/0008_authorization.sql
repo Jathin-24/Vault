@@ -64,10 +64,55 @@ $$;
 -- ============================================================================
 alter table public.documents enable row level security;
 
+-- Document READ access without re-reading the documents table.
+-- Why this exists: PostgreSQL evaluates INSERT ... RETURNING policies against
+-- the statement snapshot, which cannot see the row being inserted — so the
+-- documents SELECT policy must NOT answer "is this the caller's document?" by
+-- querying documents itself (that lookup misses the brand-new row and denies
+-- the owner their own insert). Direct row references (owner_id = auth.uid())
+-- are always visible; this function covers only the OTHER paths (grants,
+-- admin), which read untouched tables.
+create or replace function public.tv_document_read_grant(p_document_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select case
+    when auth.uid() is null then false
+    when not exists (
+      select 1 from public.profiles where id = auth.uid() and is_active
+    ) then false
+    when tv_is_admin() then true
+    when exists (
+      select 1 from public.document_grants g
+      where g.document_id = p_document_id
+        and g.revoked_at is null
+        and (
+          g.grantee_user_id = auth.uid()
+          or (
+            g.grantee_email = lower(coalesce(auth.jwt()->>'email', ''))
+            and coalesce(auth.jwt()->>'email_verified', 'false') = 'true'
+          )
+        )
+    ) then true
+    else false
+  end;
+$$;
+
+-- Semantically identical to tv_document_has_access(id, 'read'), but the owner
+-- check is a direct row reference instead of a self-scan (see comment above).
 create policy "documents_select_owner_grant_or_admin"
   on public.documents for select
   to authenticated
-  using (tv_document_has_access(id, 'read'));
+  using (
+    tv_is_active_user()
+    and (
+      owner_id = auth.uid()
+      or tv_document_read_grant(id)
+    )
+  );
 
 create policy "documents_insert_own_only"
   on public.documents for insert
