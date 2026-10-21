@@ -1,6 +1,7 @@
 # SUBMISSION.md — copy-paste drafts for hackathon.snovasys.com
 
-Placeholders marked `«…»` to fill in after deploy. Everything below is checked
+Repo is live: https://github.com/Jathin-24/Vault (public). The one placeholder
+left is `«VERCEL URL»`, to fill in after deploy. Everything below is checked
 against the repo — no claim here is unsourced.
 
 ---
@@ -17,7 +18,7 @@ tamper-evident audit chain, and a revoke works on the very next request.
 
 ## GitHub link
 
-`«PUBLIC repo URL»`
+`https://github.com/Jathin-24/Vault`
 
 ## Live URL
 
@@ -54,7 +55,7 @@ one. Honest limits are in answer 6.
 ## 3. How to run it — exact commands
 
 ```bash
-git clone «repo» && cd trustvault
+git clone https://github.com/Jathin-24/Vault.git && cd Vault
 npm install
 cp .env.example .env.local   # fill 5 values from your Supabase project (README table)
 npm run db:migrate           # applies supabase/migrations/0001–0013, idempotent
