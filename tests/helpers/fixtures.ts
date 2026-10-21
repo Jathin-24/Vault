@@ -45,9 +45,10 @@ export async function uploadVersion(
   docId: string,
   filename: string,
   content: Uint8Array,
-  mime: string
+  mime: string,
+  signal?: AbortSignal
 ): Promise<TestResponse> {
-  return client.upload(docId, filename, content, mime);
+  return client.upload(docId, filename, content, mime, signal);
 }
 
 export async function uploadOk(

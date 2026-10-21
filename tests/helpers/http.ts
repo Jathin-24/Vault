@@ -19,6 +19,8 @@ export interface RequestOptions {
   json?: unknown;
   form?: FormData;
   headers?: Record<string, string>;
+  /** Abort the request (used for the oversized-upload deadline). */
+  signal?: AbortSignal;
 }
 
 export class TestClient {
@@ -81,6 +83,7 @@ export class TestClient {
       headers,
       body,
       redirect: "manual",
+      signal: options.signal,
     });
     this.captureCookies(res);
 
@@ -123,14 +126,15 @@ export class TestClient {
     docId: string,
     filename: string,
     content: Uint8Array,
-    mime: string
+    mime: string,
+    signal?: AbortSignal
   ): Promise<TestResponse> {
     const form = new FormData();
     // Copy onto a fresh ArrayBuffer: BlobPart requires ArrayBuffer-backed
     // views, and a Shared ArrayBuffer-backed one is refused by the type.
     const copy = new Uint8Array(content);
     form.append("file", new File([copy], filename, { type: mime }));
-    return this.request("POST", `/api/documents/${docId}/versions`, { form });
+    return this.request("POST", `/api/documents/${docId}/versions`, { form, signal });
   }
 }
 

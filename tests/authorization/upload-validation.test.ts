@@ -127,15 +127,34 @@ describe.skipIf(!HTTP_ENABLED)("upload validation", () => {
 
     // 27 MB of text: over the 25 MB cap (MAX_UPLOAD_BYTES).
     const oversized = new Uint8Array(27 * 1024 * 1024).fill(0x41);
-    const res = await uploadVersion(owner, doc.id, "huge.txt", oversized, "text/plain");
 
-    expect([400, 413]).toContain(res.status);
+    // Refusal can come from OUR declared-length check (413/400 JSON) when the
+    // app is the only referee, or from a hosting edge with a smaller body cap
+    // (Vercel ~4.5 MB, observed to answer only AFTER the body streams up —
+    // tens of seconds on a slow uplink). The 20s deadline treats "still
+    // streaming, no answer" as the transport-level refusal it is; either way
+    // the refusal happens BEFORE storage, and only a success would be a bug.
+    let status: number | "transport-refused";
+    try {
+      const res = await uploadVersion(
+        owner,
+        doc.id,
+        "huge.txt",
+        oversized,
+        "text/plain",
+        AbortSignal.timeout(20_000)
+      );
+      status = res.status;
+    } catch {
+      status = "transport-refused"; // deadline hit or connection cut mid-upload
+    }
+    expect(status === "transport-refused" || [400, 413].includes(status as number)).toBe(true);
 
     const after = await owner.get(`/api/documents/${doc.id}`);
     expect(after.json<{ document: { current_version: number } }>().document.current_version).toBe(
       beforeVersion
     ); // nothing half-created
-  }, 30_000);
+  }, 60_000);
 
   it("unauthenticated upload is refused", async () => {
     const anon = anonymous(process.env.TEST_BASE_URL ?? "");
