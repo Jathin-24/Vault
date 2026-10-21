@@ -300,6 +300,48 @@ it turned a class of failures into one readable message.
 
 ---
 
+## Entry 10 — 2026-10-21 — Deploy day: a CRLF in every secret, and a test that assumed it was the only referee (deployment + tests)
+
+**What I asked (prompt summary):** "I have the Vercel CLI — deploy the app and run
+the whole test suite against the live URL."
+
+**What it produced, and what was wrong with it:** two failures a green local suite
+could not predict, plus one landmine caught before it fired.
+1. Every env var was silently corrupted on upload: piping `value | vercel env add`
+   from PowerShell appends a newline, so all six secrets were stored with a
+   trailing CRLF. The CLI's own "Value contains newlines" warnings were the hint;
+   `vercel env pull` proved it (each value ended in an escaped `\r\n`). Fixed by
+   deleting the vars and re-adding each through exact-byte file redirection
+   (`cmd /c "vercel env add NAME production < file"`), then re-pulling and
+   verifying every value byte-clean before the first deploy. Left unfixed this
+   would have 401'd or 500'd every request on the live site while looking like an
+   auth bug.
+2. The live suite ran 99/100 — "an oversized upload is refused before anything is
+   stored" timed out twice. `scripts/probe-oversized-upload.mjs` (written to
+   answer exactly this) plus a curl ground-truth run showed the real referee:
+   Vercel's edge refuses bodies over ~4.5 MB, but only AFTER the body streams up
+   (~18 s for 6 MB on this uplink, ~80 s for 27 MB), so the test was dying
+   mid-upload, not meeting a refusal. The test now threads an `AbortSignal`
+   through the client and counts a 20 s deadline as a transport-level refusal,
+   keeping the assertion that actually matters — no version is ever created.
+   Verified on both referee paths: 10/10 locally (our own 413 answers instantly)
+   and 10/10 live (the transport path). Full suite against the deployed URL
+   afterwards: **100/100**.
+3. `NEXT_PUBLIC_APP_URL` still said `localhost:3000` after the first deploy —
+   which would have made the deployed Origin check (CSRF layer 3, THREATS T15)
+   reject every legitimate browser mutation. Caught by reading what the variable
+   actually drives before judges could; now it is the deployment URL, and the
+   live login cookie reads `Secure; HttpOnly; SameSite=lax`.
+
+**Why it is an entry at all:** deployment is where invisible characters and
+platform-level referees hide. A piped newline is silent until every request
+starts failing, and "the suite passed locally" certifies the local stack — not
+the one the judges will attack.
+
+→ **commit `3697880`** (adaptive test + probe script).
+
+---
+
 ## Reused prompts, instructions and context files (the part that shows the method)
 
 1. **`project-context/BRIEF.md`** (outside repo) — the challenge text, verbatim

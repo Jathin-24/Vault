@@ -7,11 +7,18 @@ paraphrase the security claims, the wording matters.
 
 ## Pre-flight (5 minutes before recording)
 
+Record against the **live deployment** — that is what the judges attack:
+
 ```bash
-npm run db:seed        # resets demo passwords, refreshes sample data
-npm run audit:verify   # must print chain OK + a head hash — you'll show this later
-npm run dev            # http://localhost:3000
+npm run db:seed                                              # resets demo passwords / sample data
+npm run audit:verify                                         # must print chain OK + head hash (shown later)
+TEST_BASE_URL=https://trustvault-seven.vercel.app npm test   # optional: ~4 min, suite runs against the live app
 ```
+
+Open **https://trustvault-seven.vercel.app** in the browser windows below (no dev
+server needed). Local fallback: `npm run dev` at http://localhost:3000 — the demo
+script is identical. Demo files are tiny; the platform's ~4.5 MB upload cap never
+comes up.
 
 Browser setup (fresh profiles so logins don't fight over cookies):
 - **Window A** — owner: `owner@trustvault.test` / `TrustVault!Demo2026`
@@ -114,7 +121,7 @@ audit log has no write path for them — or anyone. Full trail, zero edit rights
 **Screen:** terminal → run one file to keep it quick:
 
 ```bash
-$env:TEST_BASE_URL = "http://localhost:3000"; npx vitest run tests/authorization/cross-user-isolation.test.ts
+$env:TEST_BASE_URL = "https://trustvault-seven.vercel.app"; npx vitest run tests/authorization/cross-user-isolation.test.ts
 ```
 
 **Show:** green pass line. Then switch to the repo root: README, THREATS.md,

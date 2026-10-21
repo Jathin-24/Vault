@@ -215,11 +215,14 @@ the main stored-content XSS vector.
 **Attack.** Trick a logged-in victim's browser into submitting a grant/revoke/delete request from
 another origin.
 
-**Mitigation.** Two independent properties, both verified by hand-check on the running app:
+**Mitigation.** Three independent properties, verified on the running app (live in production):
 1. The session cookie is `SameSite=Lax`, so a cross-site form POST or fetch arrives **without**
    the cookie — the request is anonymous and fails at `requireUser()`.
 2. Every state-changing route parses a JSON body (`request.json()`); an HTML form can only send
    urlencoded/multipart, so even if the cookie were attached the handler rejects the body.
+3. Every mutation route checks the `Origin` header against `NEXT_PUBLIC_APP_URL`
+   (`src/lib/http/requestContext.ts`, 23 call sites) and refuses mismatches — this layer is
+   active in production, where the variable is set to the deployment URL.
 
 **Accepted risk.** No per-request CSRF token (the SameSite + JSON combination is judged
 sufficient for a first-party app with no cookie-based subdomains). GET routes are read-only and

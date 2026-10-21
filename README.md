@@ -113,10 +113,27 @@ different tests watch each.
 in filename order and recorded, so re-running is safe. `npm run db:seed` is
 optional in production — it only creates the demo accounts.
 
-**Vercel:** import the repository and set the four env vars above
-(`DATABASE_URL` is *not* needed there — migrations run from your machine, not the
-host). `NEXT_PUBLIC_APP_URL` = your Vercel URL. Nothing else to configure; the
-build runs `next build` and the proxy handles session refresh per request.
+**Live demo:** https://trustvault-seven.vercel.app (Vercel, `main` = this repo).
+
+**Vercel (via CLI, what this project used):**
+
+```bash
+vercel link --yes --project trustvault
+vercel env add NEXT_PUBLIC_SUPABASE_URL production          # …repeat for each var
+vercel deploy --prod --yes
+```
+
+Importing the GitHub repo works identically. Set `NEXT_PUBLIC_APP_URL` to the
+exact production URL (the Origin check on mutations compares against it).
+`DATABASE_URL` is not needed on the host — migrations run from your machine.
+Watch out when piping env values into `vercel env add` from PowerShell: the pipe
+appends a newline and every secret silently gains a trailing CRLF (verify with
+`vercel env pull`). Nothing else to configure; the build runs `next build` and
+the proxy handles session refresh per request.
+
+**Upload size on the hosted demo:** Vercel refuses request bodies over ~4.5 MB
+at the platform edge — nothing is stored and the app's own 25 MB cap is what
+applies when you self-host. The test suite accounts for both referees.
 
 **After deploy:** log in as `admin@trustvault.test`, open the admin console →
 *Verify chain* to confirm the audit chain is intact on the live database.

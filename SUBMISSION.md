@@ -1,8 +1,8 @@
 # SUBMISSION.md — copy-paste drafts for hackathon.snovasys.com
 
-Repo is live: https://github.com/Jathin-24/Vault (public). The one placeholder
-left is `«VERCEL URL»`, to fill in after deploy. Everything below is checked
-against the repo — no claim here is unsourced.
+Repo is live: https://github.com/Jathin-24/Vault (public), deployed at
+https://trustvault-seven.vercel.app. Everything below is checked against the
+repo — no claim here is unsourced.
 
 ---
 
@@ -22,7 +22,7 @@ tamper-evident audit chain, and a revoke works on the very next request.
 
 ## Live URL
 
-`«VERCEL URL»`
+`https://trustvault-seven.vercel.app`
 
 ---
 
@@ -40,8 +40,9 @@ the platform admin, who has no write path to the log at all.
 
 ## 2. What actually works right now — specific and honest
 
-Everything in the brief is live and tested (100 automated tests, green):
-six seeded accounts (admin/owner/editor/viewer/outsider/leaver), upload with
+Everything in the brief is live and tested (100 automated tests, green both
+locally and against the deployed URL): six seeded accounts
+(admin/owner/editor/viewer/outsider/leaver), upload with
 real validation (magic bytes, 25 MB cap, traversal-proof names), versioned
 documents, search by name/owner/category/date, per-email read/edit grants,
 one-click revocation that 404s the next request, Google-style share dialog with
@@ -71,7 +72,7 @@ is in the README (`*@trustvault.test`, one shared demo password).
 
 OpenCode — an AI coding agent run from the terminal (model: MiMo). Every prompt,
 what it produced, what was wrong with it, and the commit that fixed it is logged
-in `PROMPTS.md` (9 dated entries; 3 are specifically about authorisation/audit).
+in `PROMPTS.md` (10 dated entries; 3 are specifically about authorisation/audit).
 The method: paste the agreed design from `DECISIONS.md` before asking for a
 module, then run a fixed hostile-review checklist after it, then execute against
 the real database — reading SQL is not running SQL.
@@ -108,8 +109,9 @@ commit) was mine, and that is where all four classes of bug died.
 
 ## 6. What is not finished — honest gaps
 
-- **Tests not yet re-run against the deployed Vercel URL** (they run against the
-  local app + real database); will run with `TEST_BASE_URL` after deploy.
+- **The hosted demo refuses uploads over ~4.5 MB** — Vercel's platform caps request
+  bodies at the edge; nothing is stored and the app's own 25 MB cap applies when
+  self-hosted. The test suite verifies the refusal property against both referees.
 - **CSP still allows `unsafe-inline`/`unsafe-eval`** (Next.js compatibility), so
   a stored-XSS bug could act as the victim even though the HttpOnly cookie
   cannot be read out (THREATS T14). Nonce-based CSP is the fix, not done.
