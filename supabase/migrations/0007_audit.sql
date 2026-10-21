@@ -103,7 +103,8 @@ create or replace function public.tv_log_event(
   p_outcome       text    default 'success',
   p_metadata      jsonb   default '{}'::jsonb,
   p_ip            text    default null,
-  p_user_agent    text    default null
+  p_user_agent    text    default null,
+  p_actor_user_id uuid    default null   -- server-side only: session uid verified by the route
 )
 returns bigint
 language plpgsql
@@ -111,7 +112,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid       uuid    := auth.uid();
+  v_uid       uuid    := coalesce(auth.uid(), p_actor_user_id);
   v_email     text;
   v_role      text    := 'system';
   v_prev      text;
@@ -164,9 +165,9 @@ begin
 end;
 $$;
 
-revoke execute on function public.tv_log_event(text, uuid, text, text, text, jsonb, text, text)
+revoke execute on function public.tv_log_event(text, uuid, text, text, text, jsonb, text, text, uuid)
   from public.anon, public.authenticated;
-grant execute on function public.tv_log_event(text, uuid, text, text, text, jsonb, text, text)
+grant execute on function public.tv_log_event(text, uuid, text, text, text, jsonb, text, text, uuid)
   to public.service_role;
 
 -- ---------------------------------------------------------------------------
