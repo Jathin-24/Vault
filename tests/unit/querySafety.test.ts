@@ -8,7 +8,7 @@
  * Both must be neutralised before input reaches a query builder.
  */
 import { describe, it, expect } from "vitest";
-import { escapeIlike, parseDateOnly } from "@/lib/http/querySafety";
+import { escapeIlike, isTermCausedSearchError, parseDateOnly, quoteOrValue } from "@/lib/http/querySafety";
 import { parseDocumentSearchParams } from "@/lib/documents/documentSearch";
 
 describe("escapeIlike", () => {
@@ -20,6 +20,38 @@ describe("escapeIlike", () => {
 
   it("leaves ordinary text alone", () => {
     expect(escapeIlike("quarterly report")).toBe("quarterly report");
+  });
+});
+
+describe("quoteOrValue (PostgREST .or() filter grammar)", () => {
+  it("wraps the value in double quotes so reserved characters stay literal", () => {
+    expect(quoteOrValue(`%${escapeIlike("' OR '1'='1")}%`)).toBe(
+      `"%' OR '1'='1%"`
+    );
+    // commas / parens would otherwise split the logic tree
+    expect(quoteOrValue("%a,b(c)%")).toBe('"%a,b(c)%"');
+  });
+
+  it("escapes embedded quotes and backslashes exactly once", () => {
+    expect(quoteOrValue(`%say "hi"%`)).toBe(`"%say \\"hi\\"%"`);
+    expect(quoteOrValue("%50\\%%")).toBe('"%50\\\\%%"');
+  });
+});
+
+describe("isTermCausedSearchError", () => {
+  it("recognises PostgREST filter parse errors", () => {
+    expect(isTermCausedSearchError({ code: "PGRST100", message: "failed to parse logic tree" })).toBe(true);
+  });
+
+  it("recognises WAF/CDN HTML pages thrown back as the 'body'", () => {
+    expect(isTermCausedSearchError({ code: null, message: "<!DOCTYPE html>...Attention Required! | Cloudflare" })).toBe(true);
+    expect(isTermCausedSearchError({ code: "XX000", message: "cf-error-520" })).toBe(true);
+  });
+
+  it("does NOT swallow real failures — those must still throw", () => {
+    expect(isTermCausedSearchError({ code: "42501", message: "permission denied for table documents" })).toBe(false);
+    expect(isTermCausedSearchError({ code: "PGRST202", message: "function not found" })).toBe(false);
+    expect(isTermCausedSearchError({ code: null, message: "fetch failed" })).toBe(false);
   });
 });
 

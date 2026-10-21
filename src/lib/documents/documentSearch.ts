@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { escapeIlike, parseDateOnly } from "@/lib/http/querySafety";
+import {
+  escapeIlike,
+  isTermCausedSearchError,
+  parseDateOnly,
+  quoteOrValue,
+} from "@/lib/http/querySafety";
 import { CATEGORIES } from "@/lib/constants";
 
 /**
@@ -96,9 +101,12 @@ export async function runDocumentSearch(
 
   if (owner) query = query.ilike("owner.email", `%${escapeIlike(owner)}%`);
   if (q) {
-    query = query.or(
-      `title.ilike.%${escapeIlike(q)}%,description.ilike.%${escapeIlike(q)}%`
-    );
+    // One implementation of "search means literal text": escapeIlike keeps
+    // LIKE metacharacters literal, quoteOrValue keeps PostgREST's filter
+    // grammar literal. Together a hostile term can neither match more than
+    // intended nor break the query.
+    const pattern = quoteOrValue(`%${escapeIlike(q)}%`);
+    query = query.or(`title.ilike.${pattern},description.ilike.${pattern}`);
   }
   if (category) query = query.eq("category", category);
   if (folderId) query = query.eq("folder_id", folderId);
@@ -111,7 +119,17 @@ export async function runDocumentSearch(
     .order("updated_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (error) throw error;
+  if (error) {
+    if (!isTermCausedSearchError(error)) throw error;
+    // The TERM made the edge reject the request (filter parse error, or the
+    // CDN WAF blocking input that looks like an attack). A search we cannot
+    // ask Postgres about matches NOTHING: fail closed to an empty page —
+    // a listing reveals nothing — and log it instead of returning 500.
+    console.warn(
+      `[search] term-caused failure, returning empty: ${error.code ?? "?"} ${error.message?.slice(0, 200) ?? ""}`
+    );
+    return { documents: [], total: 0, page, limit };
+  }
 
   return {
     documents: (data ?? []).map((row: Record<string, unknown>) => ({
