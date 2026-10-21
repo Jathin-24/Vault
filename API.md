@@ -50,7 +50,7 @@ check run inside Postgres by `tv_authorize_document_access()` on every call. `�
 | Method + path | Role | Document access | Notes |
 | --- | --- | --- | --- |
 | `GET /api/folders` | session | — | Caller's own folders. |
-| `POST /api/folders` | session | — | Name ≤80 chars, validated. |
+| `POST /api/folders` | session | — | Name 1–120 chars, validated; optional parent must be the caller's own folder. |
 | `PATCH /api/folders/:id` | session | — | Owner of the folder only. |
 | `DELETE /api/folders/:id` | session | — | Owner only; documents keep existing (folders never grant/deny). |
 
@@ -67,7 +67,7 @@ check run inside Postgres by `tv_authorize_document_access()` on every call. `�
 | `GET /api/admin/summary` | admin | all metadata | Counters for the console. |
 | `GET /api/admin/audit?eventType=&actor=&outcome=&documentId=&from=&to=&limit=&offset=` | admin | metadata of all | **Read-only.** `audit_events` has no insert/update/delete policy for any API role, and a table trigger blocks UPDATE/DELETE for every role including the service key — so this endpoint is read-only by construction, not by convention. |
 | `GET /api/admin/documents?q=&status=` | admin | metadata only | Every document incl. deleted, with owner + grant counts. Never returns bytes. |
-| `GET /api/documents/:id/download` (as admin) | admin | **break-glass** | The same download route: when the normal authorisation says no, it calls `tv_admin_read_document`, which writes an `admin_override` audit event before any byte streams. Response header `X-TTrustVault-Access: admin-override`. |
+| `GET /api/documents/:id/download` (as admin) | admin | **break-glass** | The same download route: when the normal authorisation says no, it calls `tv_admin_read_document`, which writes an `admin_override` audit event before any byte streams. Response header `X-TrustVault-Access: admin-override`. |
 | `GET /api/admin/anomalies` | admin | — | Rate / failure / override anomaly scan. |
 | `POST /api/admin/verify` | admin | — | Runs `tv_verify_audit_chain()`; returns `{ ok, events, head }` or `{ ok: false, broken_at, reason }`. |
 | `GET /api/admin/users` | admin | — | Directory of accounts. |

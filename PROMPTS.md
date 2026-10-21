@@ -153,6 +153,153 @@ landed in `4160745`.**
 
 ---
 
+## Entry 6 — 2026-10-21 — THREATS.md and API.md (threat thinking + API docs)
+
+**What I asked (prompt summary):** "Read the actual route files and write two docs:
+THREATS.md — every attack on the sharing model a judge could raise, with what stops
+it and what we cannot stop; API.md — every endpoint with an explicit permission
+table (who may call it, what a stranger gets back)."
+
+**What it produced:** THREATS.md with 13 threats (T1–T13), each with attack /
+mitigation / status, plus an accepted-risk list and a "what we deliberately did NOT
+do" section; API.md with per-route permission tables for auth, documents, grants,
+folders, audit and admin.
+
+**What was wrong with it:** the first API.md draft was written from the plan rather
+than the code. Checking it against the route files found six factual errors: search
+documented as `POST /api/documents/search` (actually `GET /api/documents?q=`), a
+separate own-activity endpoint (actually `GET /api/audit`), `grantId` as a URL param
+on grant update/delete (actually in body/query), an `admin` flag returned by
+`/api/me` (admins are identified by `role` on the session user object instead), plus
+the wrong session-cookie name family and a wrong claim that signup issues a session.
+
+**What I did instead:** rewrote every table from the source of each `route.ts`, and
+added an explicit cross-cutting rule the code really enforces — anything the caller
+may not see returns **404, never 403**, so existence is not leaked. In THREATS.md the
+unresolved items (superuser drops the audit trigger, in-flight download after a
+mid-flight revoke, service-role key theft) are listed as detection mechanisms or
+accepted risks instead of being dressed up as solved.
+
+→ **commit `f18cf95`** (plus a follow-up correction of the folder-name length row
+80→120 chars, which came from re-reading `folders/route.ts`).
+
+---
+
+## Entry 7 — 2026-10-21 — First REAL execution: migrations, seed, chain verify (schema + audit)
+
+**What I asked (prompt summary):** "Stop reviewing the SQL — execute it. Run
+`npm run db:migrate` against the actual Supabase project, then `npm run db:seed`,
+then `npm run audit:verify`, and fix whatever breaks."
+
+**What it produced:** the schema, seeder and chain verifier all running against the
+live database — after four rounds of real errors that no amount of reading the SQL
+had shown:
+
+1. **Role-name syntax.** `revoke ... from public.anon` is invalid: `anon` /
+   `authenticated` / `service_role` are already top-level roles (`public` is kept
+   only as the *ALL PRIVILEGES* keyword). Same class of error in `0007`/`0009`,
+   plus `overriding system value` placed after `values` instead of before it.
+2. **Empty-chain bootstrap (`0011`).** `select ... into v_prev` on an empty
+   `audit_events` assigns **NULL** over the declared default — so the very first
+   audited event ever written failed `prev_hash NOT NULL`. The bug only exists on
+   a fresh database; every later event masks it.
+3. **`INSERT ... RETURNING` vs RLS (`0012`).** Creating a document through the API
+   (PostgREST does `.insert().select()`) failed with "new row violates row-level
+   security", while a plain insert worked: the SELECT policy is evaluated against
+   the statement snapshot, which **cannot see the row being inserted**, and the old
+   policy asked "is owner?" by subquerying `documents` itself. Fixed with a direct
+   `owner_id = auth.uid()` row reference (always visible) plus
+   `tv_document_read_grant()` for grant/admin reads (touches no `documents` rows).
+4. **A grant model that could never open (`0013`).** Grantees got 404 on every
+   document despite active grants: all access paths matched
+   `auth.jwt()->>'email_verified'`, but modern Supabase tokens carry **no**
+   top-level `email_verified` claim — it lives in `user_metadata`, which the *user
+   can edit*, so trusting it would let anyone grant themselves access. Verification
+   now comes from `auth.users.email_confirmed_at`, synced into
+   `profiles.email_verified` by a trigger on `auth.users`, and every access path
+   matches on profiles (ours, not user-editable) instead of JWT claims.
+
+**What was wrong with my initial diagnosis:** I first read problems 2–4 as app-layer
+bugs. Executing them in order showed they were all *database-semantics* bugs that
+only appear against a live engine — snapshot visibility, `select into` on zero rows,
+JWT claim drift.
+
+**What I did instead:** fixed each at the source (`0007`/`0008` edited so fresh
+clones get the corrected bodies directly) **and** added `0011`–`0013` as idempotent
+follow-ups so the already-recorded live database converges to the identical final
+state. Two of the four fixes are authorisation/audit-critical, which is exactly why
+they get their own migrations with the failure mode written into the header comment.
+
+→ **commit `4f46484`.** After it: migrate/seed/audit-verify all green on the live
+project (`audit:verify` prints the chain head hash).
+
+---
+
+## Entry 8 — 2026-10-21 — The integration suite that had to fail if an auth check is removed (tests)
+
+**What I asked (prompt summary):** "Write the automated cross-user isolation tests:
+against the real running app, five accounts, every negative assertion paired with a
+positive control, and they must go red if any authorisation check is deleted. Then
+run the whole suite and fix what it catches."
+
+**What it produced:** `tests/helpers/` (cookie-jar HTTP client, session-cached
+logins — login is rate-limited, so re-authenticating per run would throttle us —
+fixtures) and six authorization files plus the unit suite: isolation, revocation,
+audit integrity (including a direct-SQL tamper attempt inside a rolled-back
+transaction, impersonating an admin via `request.jwt.claims` GUCs), admin
+read-only, sessions, upload validation. **100 tests, all green.**
+
+**What it caught (each a real defect, not a test bug):**
+1. **A security header that never shipped.** The download route set
+   `X-TTrustVault-Access` with an extra *T*, so the break-glass marker documented
+   in API.md read back as `null` — the audit event was written, the client-visible
+   signal was not. → `703db15`.
+2. **RLS refusing by exception, not by zero rows.** `PATCH /api/documents/:id`
+   threw 500 when row security rejected the statement outright (`42501`) instead of
+   updating nothing. Both shapes now feed the same visibility logic (403 known /
+   404 invisible). → `703db15`.
+3. **A search term that tripped a CDN firewall.** `q=1; drop table documents;--`
+   returned 500 — not because of SQL (parameter binding), and not even because of
+   PostgREST's `.or()` grammar as I first diagnosed by probing: the term made
+   *Supabase's Cloudflare WAF* reject our own backend's request, and supabase-js
+   surfaced the HTML block page as an "error body". → `81922e7`.
+
+**What I did instead:** `.or()` values are now double-quoted with proper `\\` / `\"`
+escapes (`quoteOrValue`, verified against PostgREST's documented grammar), and only
+errors provably caused by the *term* (filter parse error, WAF HTML) degrade to
+`200 + empty page` — a search we cannot ask Postgres about reveals nothing — while
+auth/schema/network failures still throw. A positive control (the owner's own search
+must still find their document) keeps the quoting honest.
+
+**Process note:** the suite was written first and run locally before any of this was
+committed, so the fixes (`703db15`, `81922e7`) land in history *before* the suite
+itself (`13da8be`); running the suite at `c84f4d4`/`13da8be` onward is green.
+
+→ **commits `c84f4d4` (unit), `703db15`, `81922e7`, `13da8be` (suite).**
+
+---
+
+## Entry 9 — 2026-10-21 — Config drift: the anon key grew a second name (engineering)
+
+**What I asked (prompt summary):** "The project's `.env.local` uses
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (the name newer Supabase dashboards show)
+and the app still throws 'environment variables missing'. Make the env handling
+single-sourced and tolerant of both names."
+
+**What it produced:** `src/lib/supabase/env.ts` — one resolver for URL / browser key
+/ service key with an error that says exactly which variable is missing — replacing
+four hand-rolled `process.env` reads in `server.ts`, `client.ts`, `admin.ts` and
+`proxy.ts`. The proxy keeps a *tolerant* read on purpose: it runs on every request,
+so a missing key must degrade to "session not refreshed", never a 500.
+
+**Why it is an entry at all:** two build machines differing on one variable name is
+the kind of failure that wastes an evening and looks like an auth bug. Centralising
+it turned a class of failures into one readable message.
+
+→ **commit `590628f`.**
+
+---
+
 ## Reused prompts, instructions and context files (the part that shows the method)
 
 1. **`project-context/BRIEF.md`** (outside repo) — the challenge text, verbatim
