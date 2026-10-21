@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getSupabaseUrl, getSupabaseAnonKey } from "@/lib/supabase/env";
 
 /**
  * Server Supabase client bound to the request's cookies (anon key + user
@@ -11,11 +12,8 @@ export async function createServerSupabase() {
   // Next.js bail out to dynamic rendering instead of failing the build.
   const cookieStore = await cookies();
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) {
-    throw new Error("Supabase environment variables are missing (.env.local)");
-  }
+  const url = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
 
   return createServerClient(url, anonKey, {
     cookies: {

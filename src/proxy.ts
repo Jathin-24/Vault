@@ -13,7 +13,12 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Tolerant read (no throw): this runs on every request, and a missing key
+  // here must degrade to "no session refresh", never a 500. Accepts both the
+  // legacy ANON_KEY name and the newer PUBLISHABLE_KEY name.
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (url && anonKey) {
     const supabase = createServerClient(url, anonKey, {
