@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseUrl, getSupabaseAnonKey } from "@/lib/supabase/env";
+import { sessionCookieOptions } from "@/lib/supabase/sessionCookie";
 
 /**
  * Server Supabase client bound to the request's cookies (anon key + user
@@ -25,7 +26,7 @@ export async function createServerSupabase() {
       ) {
         try {
           cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
+            cookieStore.set(name, value, { ...options, ...sessionCookieOptions() })
           );
         } catch {
           // Called from a Server Component: middleware refreshes sessions
