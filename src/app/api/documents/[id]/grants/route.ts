@@ -154,6 +154,60 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 }
 
 /**
+ * PATCH /api/documents/:id/grants — change an existing grant's level
+ * who may call: document owner only. Logged as grant.permission_changed by
+ * the table trigger (works even against the database directly).
+ */
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    if (!UUID_RE.test(id)) return notFound();
+    if (!isSameOriginMutation(request)) {
+      return NextResponse.json({ error: "Cross-origin request refused." }, { status: 403 });
+    }
+
+    const ctx = await requireUser();
+    if ("error" in ctx) return ctx.error;
+    const { supabase, user } = ctx;
+
+    const body = await request.json().catch(() => null);
+    const grantId = String(body?.grantId ?? "");
+    const permission = String(body?.permission ?? "");
+    if (!UUID_RE.test(grantId)) return badRequest("Missing grantId.");
+    if (!DOCUMENT_PERMISSIONS.includes(permission as (typeof DOCUMENT_PERMISSIONS)[number])) {
+      return badRequest("Permission must be 'read' or 'edit'.");
+    }
+
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("id, owner_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!doc) return notFound();
+    if (doc.owner_id !== user.id) {
+      return NextResponse.json(
+        { error: "Only the document owner can manage sharing." },
+        { status: 403 }
+      );
+    }
+
+    const { data: updated, error } = await supabase
+      .from("document_grants")
+      .update({ permission })
+      .eq("id", grantId)
+      .eq("document_id", id)
+      .is("revoked_at", null)
+      .select("id, grantee_email, permission");
+    if (error) throw error;
+    if (!updated?.length) return notFound();
+
+    return NextResponse.json({ grant: updated[0] });
+  } catch (err) {
+    return handleRouteError(err, "PATCH /api/documents/:id/grants");
+  }
+}
+
+/**
  * DELETE /api/documents/:id/grants?grantId=… — revoke IMMEDIATELY.
  * who may call: document owner only.
  *

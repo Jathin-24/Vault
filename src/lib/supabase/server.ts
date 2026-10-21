@@ -7,13 +7,15 @@ import { cookies } from "next/headers";
  * this is the "server decides" path for metadata reads/writes.
  */
 export async function createServerSupabase() {
+  // Touch the dynamic API FIRST: during a static-prerender attempt this makes
+  // Next.js bail out to dynamic rendering instead of failing the build.
+  const cookieStore = await cookies();
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) {
     throw new Error("Supabase environment variables are missing (.env.local)");
   }
-
-  const cookieStore = await cookies();
 
   return createServerClient(url, anonKey, {
     cookies: {

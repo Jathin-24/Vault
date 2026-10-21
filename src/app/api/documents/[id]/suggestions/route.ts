@@ -34,7 +34,54 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       if (/only the document owner/i.test(error.message)) return notFound();
       throw error;
     }
-    return NextResponse.json({ suggestions: data ?? [] });
+
+    // Persist each pending suggestion so a later decision references a real,
+    // auditable row (status/decision are preserved; RLS = owner only).
+    const persisted: Array<{
+      id: string;
+      suggested_email: string;
+      full_name: string;
+      reason: string;
+      score: number;
+    }> = [];
+
+    for (const s of (data ?? []) as Array<{
+      suggested_email: string;
+      full_name: string;
+      reason: string;
+      score: number;
+    }>) {
+      const { data: existing } = await supabase
+        .from("access_suggestions")
+        .select("id, status")
+        .eq("document_id", id)
+        .eq("suggested_email", s.suggested_email)
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.status === "pending") {
+          persisted.push({ id: existing.id, ...s, score: Number(s.score) });
+        }
+        continue;
+      }
+
+      const { data: inserted } = await supabase
+        .from("access_suggestions")
+        .insert({
+          document_id: id,
+          suggested_email: s.suggested_email,
+          reason: s.reason,
+          score: s.score,
+        })
+        .select("id")
+        .single();
+
+      if (inserted) {
+        persisted.push({ id: inserted.id, ...s, score: Number(s.score) });
+      }
+    }
+
+    return NextResponse.json({ suggestions: persisted });
   } catch (err) {
     return handleRouteError(err, "GET /api/documents/:id/suggestions");
   }

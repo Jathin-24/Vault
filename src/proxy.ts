@@ -9,7 +9,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
  * lives in Postgres (RLS + RPCs). If this file were deleted, pages would fail
  * to see a logged-in user — they would never fail OPEN.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
